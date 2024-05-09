@@ -12,7 +12,11 @@ library(semPlot)
 library(openxlsx)
 library(rstan)
 library(blavaan)
-
+library(brms)
+library(seminr)
+library(blavaan)
+library(bayesplot)
+library(posterior)
 
 # Definir o caminho do arquivo
 file_path <- "/Users/nuno/faculdade/bayesiana/dataset.xlsx"
@@ -80,31 +84,31 @@ for (i in 1:nrow(high_correlation_idx)) {
 # ARTIGO
 
 # Carregar o pacote seminr
-library(seminr)
+# 
 
-mm <- constructs(
-  composite("CI", multi_items("CI", 1:6)),
-  composite("PE", multi_items("PE", 1:6)),
-  composite("AUT", multi_items("aut", 1:4)),
-  composite("COM", multi_items("com", 1:4)),
-  composite("REL", multi_items("rel", 1:4)),
-  composite("Achievement", multi_items("ach", 1:2), weights = mode_B)
-)
+# mm <- constructs(
+#   composite("CI", multi_items("CI", 1:6)),
+#   composite("PE", multi_items("PE", 1:6)),
+#   composite("AUT", multi_items("aut", 1:4)),
+#   composite("COM", multi_items("com", 1:4)),
+#   composite("REL", multi_items("rel", 1:4)),
+#   composite("Achievement", multi_items("ach", 1:2), weights = mode_B)
+# )
 
-# Definindo o modelo estrutural
-sm <- relationships(
-  paths(from = "AUT", to = c("CI", "PE", "Achievement")),
-  paths(from = "COM", to = c("CI", "PE", "Achievement")),
-  paths(from = "REL", to = c("CI", "PE", "Achievement")),
-  paths(from = "CI", to = "Achievement"),
-  paths(from = "PE", to = "Achievement")
-)
+# # Definindo o modelo estrutural
+# sm <- relationships(
+#   paths(from = "AUT", to = c("CI", "PE", "Achievement")),
+#   paths(from = "COM", to = c("CI", "PE", "Achievement")),
+#   paths(from = "REL", to = c("CI", "PE", "Achievement")),
+#   paths(from = "CI", to = "Achievement"),
+#   paths(from = "PE", to = "Achievement")
+# )
 
-# Ajustar o modelo PLS-SEM
-modelo_pls <- estimate_pls(data = dataset, measurement_model = mm, structural_model = sm)
+# # Ajustar o modelo PLS-SEM
+# modelo_pls <- estimate_pls(data = dataset, measurement_model = mm, structural_model = sm)
 
-# Sumarizar os resultados
-summary(modelo_pls)
+# # Sumarizar os resultados
+# summary(modelo_pls)
 
 ################################################################################
 
@@ -142,17 +146,28 @@ curve(dnorm(x, mean = 0, sd = 10), from = -30, to = 30, main = "Distribuição a
 # Plot prior gamma para desvios padrão
 curve(dgamma(x, shape = 1, rate = 0.5), from = 0, to = 20, main = "Distribuição a priori para Desvios Padrão (Gamma(1,0.5))", xlab = "Valor do Desvio Padrão", ylab = "Densidade")
 
-# Número total de variáveis
-total_vars <- 26
 
-# Número de variáveis por plot
-vars_per_plot <- 6
+# Extract posterior samples
+# posterior_samples <- posterior_samples(modelfit_cfa, variables = c("b", "theta"))
 
-# Criar uma sequência de gráficos para cada grupo de variáveis
-for (i in seq(1, total_vars, by = vars_per_plot)) {
-  upper_bound <- min(i + vars_per_plot - 1, total_vars)
-  plot(modelfit_cfa, plot.type = "trace", pars = i:upper_bound)
-}
+# # Plot histogram or density for a specific coefficient
+# hist(posterior_samples$b[,1], main = "Posterior Distribution for a Coefficient", xlab = "Coefficient Value", breaks = 30, probability = TRUE)
+# lines(density(posterior_samples$b[,1]), col = "blue")
+
+# # Plot histogram or density for a specific standard deviation
+# hist(posterior_samples$theta[,1], main = "Posterior Distribution for a Standard Deviation", xlab = "Standard Deviation Value", breaks = 30, probability = TRUE)
+# lines(density(posterior_samples$theta[,1]), col = "blue")
+# # Número total de variáveis
+# total_vars <- 26
+
+# # Número de variáveis por plot
+# vars_per_plot <- 6
+
+# # Criar uma sequência de gráficos para cada grupo de variáveis
+# for (i in seq(1, total_vars, by = vars_per_plot)) {
+#   upper_bound <- min(i + vars_per_plot - 1, total_vars)
+#   plot(modelfit_cfa, plot.type = "trace", pars = i:upper_bound)
+# }
 
 ####################################################################################
 
