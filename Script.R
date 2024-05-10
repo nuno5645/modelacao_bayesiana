@@ -17,6 +17,7 @@ library(seminr)
 library(blavaan)
 library(bayesplot)
 library(posterior)
+library(FactoMineR)  # For PCA
 
 # Definir o caminho do arquivo
 file_path <- "/Users/nuno/faculdade/bayesiana/dataset.xlsx"
@@ -63,21 +64,81 @@ dataset <- knnImputation(dataset, k = 5)  # Ajustar k se necessário
 # Plotar boxplot para inspeção visual das distribuições das variáveis
 boxplot(dataset[,3:29])
 
-# Calcular e plotar correlações
-correlation <- cor(dataset, use = "pairwise.complete.obs")  # Lidar com dados omissos
-corrplot(correlation)
 
-# Encontrar pares altamente correlacionados
-threshold <- 0.7
-high_correlation_idx <- which(correlation > threshold & correlation < 1, arr.ind = TRUE)
-top_correlations <- list()
+likert_vars <- dataset[,c("CI1", "CI2", "CI3", "CI4", "CI5", "CI6",
+                          "PE1", "PE2", "PE3", "PE4", "PE5", "PE6",
+                          "aut1", "aut2", "aut3", "aut4",
+                          "com1", "com2", "com3", "com4",
+                          "rel1", "rel2", "rel3", "rel4")]
 
-for (i in 1:nrow(high_correlation_idx)) {
-  var1 <- rownames(correlation)[high_correlation_idx[i, 1]]
-  var2 <- rownames(correlation)[high_correlation_idx[i, 2]]
-  corr_value <- correlation[high_correlation_idx[i, 1], high_correlation_idx[i, 2]]
-  top_correlations[[paste(var1, "&", var2)]] <- corr_value
+
+# Variáveis não-Likert
+non_likert_vars <- dataset[,c("Age", "Gender", "ach1", "ach2")]
+
+# Calcular e plotar correlações para variáveis de escala de Likert
+likert_correlation <- cor(likert_vars, use = "everything", method = "spearman")  
+corrplot(likert_correlation)
+
+# Calcular e plotar correlações para variáveis não-Likert
+non_likert_correlation <- cor(non_likert_vars, use = "everything", method = "pearson")  
+corrplot(non_likert_correlation)
+
+
+# Define latent variable groups
+latent_groups <- list(
+  CI = c("CI1", "CI2", "CI3", "CI4", "CI5", "CI6"),
+  PE = c("PE1", "PE2", "PE3", "PE4", "PE5", "PE6"),
+  AUT = c("aut1", "aut2", "aut3", "aut4"),
+  COM = c("com1", "com2", "com3", "com4"),
+  REL = c("rel1", "rel2", "rel3", "rel4")
+)
+
+
+# Applying PCA to Achievement variables
+pca_achievement <- PCA(dataset[, c("ach1", "ach2")], graph = FALSE, ncp = 1)
+
+# Adding the first principal component as a new column in the dataset
+dataset$PCA_Achievement <- pca_achievement$ind$coord[, 1]
+
+ggplot(dataset, aes(x = PCA_Achievement, fill = CI1, group = CI1)) +
+  geom_density(alpha = 0.5) + 
+  labs(title = "Density Plot of PCA Achievement by CI1 Group",
+       x = "PCA Achievement",
+       y = "Density") +
+  theme_minimal()
+
+
+# Plot the density for each group
+p_list <- list()
+for (group in latent_groups[[1]]) {
+  p <- ggplot(dataset, aes(x = PCA_Achievement, fill = !!sym(group), group = !!sym(group))) +
+    geom_density(alpha = 0.5) +
+    labs(title = paste("Density Plot of PCA Achievement by", group, "Group"),
+         x = "PCA Achievement",
+         y = "Density") +
+    theme_minimal()
+  
+  p_list[[group]] <- p
 }
+
+plot_grid(plotlist = p_list, labels = latent_groups[[1]])
+
+
+
+
+
+
+
+scaled_dataset <- scale(dataset[, 3:29])
+
+# Calcular Z-scores
+z_scores <- abs(scaled_dataset) > 3  # Usando 3 como threshold para Z-score
+
+# Identificar índices dos outliers
+outlier_indices <- which(z_scores, arr.ind = TRUE)
+
+# Visualizar outliers em um boxplot
+boxplot(scaled_dataset, main = "Boxplot with Outliers Highlighted")
 
 #################################################################################################
 
@@ -138,7 +199,7 @@ modelfit_cfa <- bcfa(
 )
 
 # Sumário dos resultados
-(summary(modelfit_cfa, standardized = TRUE, rsquare = TRUE, neff = TRUE, postmedian = TRUE))
+summary(modelfit_cfa, standardized = TRUE, rsquare = TRUE, neff = TRUE, postmedian = TRUE)
 
 # Plot prior normal para coeficientes
 curve(dnorm(x, mean = 0, sd = 10), from = -30, to = 30, main = "Distribuição a priori para Coeficientes (Normal(0,10))", xlab = "Valor do Coeficiente", ylab = "Densidade")
@@ -146,17 +207,19 @@ curve(dnorm(x, mean = 0, sd = 10), from = -30, to = 30, main = "Distribuição a
 # Plot prior gamma para desvios padrão
 curve(dgamma(x, shape = 1, rate = 0.5), from = 0, to = 20, main = "Distribuição a priori para Desvios Padrão (Gamma(1,0.5))", xlab = "Valor do Desvio Padrão", ylab = "Densidade")
 
+posterior_samples <- blavInspect(modelfit_cfa, "mcmc")
 
-# Extract posterior samples
-# posterior_samples <- posterior_samples(modelfit_cfa, variables = c("b", "theta"))
+# Plot posterior distributions for coefficient parameters
+bayesplot::mcmc_areas(posterior_samples, 
+                      pars = grep("coef", names(posterior_samples), value = TRUE),
+                      main = "Posterior Distribution for Coefficients")
 
-# # Plot histogram or density for a specific coefficient
-# hist(posterior_samples$b[,1], main = "Posterior Distribution for a Coefficient", xlab = "Coefficient Value", breaks = 30, probability = TRUE)
-# lines(density(posterior_samples$b[,1]), col = "blue")
+# Plot posterior distributions for parameters that might follow Gamma distribution in the prior
+bayesplot::mcmc_areas(posterior_samples, 
+                      pars = grep("sigma|tau|sd", names(posterior_samples), value = TRUE),
+                      main = "Posterior Distribution for Standard Deviations/Scales")
 
-# # Plot histogram or density for a specific standard deviation
-# hist(posterior_samples$theta[,1], main = "Posterior Distribution for a Standard Deviation", xlab = "Standard Deviation Value", breaks = 30, probability = TRUE)
-# lines(density(posterior_samples$theta[,1]), col = "blue")
+
 # # Número total de variáveis
 # total_vars <- 26
 
